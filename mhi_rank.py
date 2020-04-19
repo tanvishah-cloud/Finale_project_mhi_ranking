@@ -108,11 +108,11 @@ def save_cache(cache):
     None
     '''
     cache_file = open('cache.json', 'w')
-    contents_to_write = json.dumps(str(cache))
+    contents_to_write = json.dumps(cache)
     cache_file.write(contents_to_write)
     cache_file.close()
 
-def fetch_data(url, cache={}):
+def fetch_data(url, rank_input, cache={}):
     '''Requests url using the existing cache
     
     Parameters
@@ -125,16 +125,38 @@ def fetch_data(url, cache={}):
     cache url 
     cache
     '''
-    if (url in cache.keys()): 
+    i = int(rank_input-1)
+    if i in cache: 
+        # If the data is in cache -> use that
         print("Using cache")     
+        college_name, sliced_list_location, sliced_list_degree, page_link = cache[i]
     else:
         print("Fetching")
-        response = requests.get(BASEURL)
+        #fetch data from url
+        response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
-        searching_div = soup.find(attrs= {"class":"modContents"})
-        cache[url] = searching_div
-    
-    return cache[url],cache
+        search = soup.find(attrs= {"class":"modContents"})
+
+        # Process on fetched data
+        college_name = get_uni_name(search)
+        college_name.reverse()
+        college_location_degree = get_uni_loc_degree(search)
+        college_location_degree.reverse()
+        sliced_list_degree = college_location_degree[0:40:2] 
+        sliced_list_location = college_location_degree[1:40:2]
+        page_link = get_page_link(search)
+        
+        college_name = college_name[i]
+        sliced_list_location = sliced_list_location[i]
+        sliced_list_degree = sliced_list_degree[i]
+        page_link = page_link[i]
+        cache[i] = (college_name, sliced_list_location, sliced_list_degree, page_link)
+
+    print("-------------------------\n UNIVERSITY NAME WITH RANK:\n--------------------------\n" + college_name)
+    print("---------------------\n UNIVERSITY LOCATION:\n---------------------\n" + sliced_list_location)
+    print("---------------------\n UNIVERSITY DEGREE:\n---------------------\n" + sliced_list_degree)
+    print("-----------\n WEBPAGE:\n-----------\n" + page_link+ "\n-----------")
+    return cache
 
 
 conn = sqlite3.connect('mhi.sqlite')
@@ -169,7 +191,7 @@ fig.write_html("scatter.html", auto_open=True)
 
 # make a __main__ and put user input promt here along with pretty printing the fetched data
 if __name__ == "__main__":
-    import os
+    # load cache
     cache = load_cache()
     while True:
         print("--------------------------------------------")
@@ -177,22 +199,10 @@ if __name__ == "__main__":
         if rank_input.isnumeric():
             rank_input = float(rank_input)
             if rank_input in list(range(1,21)):
-                search,cache = fetch_data(BASEURL,cache)
-                # print(search)
-                i = int(rank_input)-1
-                college_name = get_uni_name(search)
-                college_name.reverse()
-                print("-------------------------\n UNIVERSITY NAME WITH RANK:\n--------------------------\n" + college_name[i])
-                college_location_degree = get_uni_loc_degree(search)
-                college_location_degree.reverse()
-                sliced_list_degree = college_location_degree[0:40:2] 
-                sliced_list_location = college_location_degree[1:40:2]
-                print("---------------------\n UNIVERSITY LOCATION:\n---------------------\n" + sliced_list_location[i])
-                print("---------------------\n UNIVERSITY DEGREE:\n---------------------\n" + sliced_list_degree[i])
-                page_link = get_page_link(search)
-                # sliced_url =page_link[1:21] 
-                # sliced_url.reverse()
-                print("-----------\n WEBPAGE:\n-----------\n" + page_link[i]+ "\n-----------")
+                # Get data either from URL or from cache and display
+                cache = fetch_data(BASEURL, rank_input, cache)
+                # update the cache
+                save_cache(cache)
             elif rank_input not in list(range(1,21)):
                 print(f"[ERROR] Enter a rank between 1 and 20 [ERROR]")
             else:
@@ -206,8 +216,4 @@ if __name__ == "__main__":
                 print(f"I'm not sure what you're searching.\nPlease enter a number between 1 and 20 to get corresponding college.")
         else:
             print(f"I'm not sure what you're searching.\nPlease enter a number between 1 and 20 to get corresponding college.")
-        save_cache(cache)
-    
-    
-
-
+        
